@@ -1,0 +1,456 @@
+{*******************************************************************************
+
+     FaladorFlaxSpinner
+     Version 1.1
+
+     Instructions:
+     1. Make sure to have the latest version of the SRL-OSR & RSWalker includes.
+     2. Make sure to have the 'Falador.png' downloaded from the thread and place
+        it in 'C:\Simba\Includes\RSWalker\maps'.
+     3. Fill out the constants below with your login info.
+     4. Log into the game and place the FLAX in the 7th spot of the bank
+        (i.e. the right corner at the top of the bank.)
+     5. Start anywhere near the Falador EAST bank.
+
+     *Remember to check it after a while to make sure everything is ok.*
+
+     *WARNING: The ban rates are pretty high with spinning flax, so be careful.*
+
+*******************************************************************************}
+program FaladorFlaxSpinner;
+{$H-}
+{$define SMART}
+{$I SRL/OSR.simba}
+{$I RSWalker/Walker.simba}
+
+type
+  TMSObject = record
+    WorldLoc: TPointArray;
+    Color: TCTS2Color;
+    MinCount: Int32;
+    SplitDist: Int32;
+  end;
+
+{*******************************************************************************
+                       USER AND ITEM INFORMATION SETUP
+*******************************************************************************}
+const
+  LOGIN_NAME  = 'username';   //Account Email/Username
+  LOGIN_PASS  = 'password';   //Account Password
+  RS_WORLD    = -1;           //Preferred world, -1 = random world
+  IS_MEMBER   = True;         //TRUE or FALSE
+  XPPERSTRING = 15;           //XP you get for making 1 bow string
+  FLAXCOST    = 4;            //GP you bought the 1 flax for
+  BSCOST      = 145;          //GP you plan to sell the bow string for
+
+{*******************************************************************************
+                               END OF SETUP
+*******************************************************************************}
+
+var
+  Walk: TRSWalker;
+  pBank, pStairsTop, pStairsBottom, pSpinner,
+  bankLoc, tStairLoc, bStairLoc, spinLoc: TPointArray;
+
+  bankCol, tStairCol, bStairCol, spinCol: TCTS2Color;
+
+  bUpText, tSUpText, bSUpText, sUpText,
+  bOption, tSOption, bSOption, sOption: TStringArray;
+
+  bLeft, tSLeft, bSLeft, spinLeft: Boolean;
+
+  bsDTM, flaxDTM, bsButtonDTM, craftLvlDTM,
+  stringsMade: Integer;
+
+  Antiban: TAntiban;
+
+{*******************************************************************************
+  Name: declarePlayers();
+  Function: Sets the proper variables to allow successful login.
+*******************************************************************************}
+procedure declarePlayers();
+begin
+  with Players.New()^ do
+  begin
+    LoginName  := LOGIN_NAME;
+    Password   := LOGIN_PASS;
+    IsActive   := True;
+    IsMember   := IS_MEMBER;
+    World      := RS_WORLD;
+  end;
+  Players.SetCurrent(0);
+end;
+
+{*******************************************************************************
+  Name: loadObjects();
+  Function: Loads all the colours for the bank, spinning wheel, paths, and DTMS.
+*******************************************************************************}
+procedure loadObjects();
+begin
+  //Bank booth location, colour, and uptext
+  bankLoc := [[314, 193], [318, 193], [322, 193], [326, 193]];
+  bankCol := CTS2(3818584, 19, 0.30, 0.96);
+  bUpText := ['Bank bo', 'nk Bank'];
+  bLeft := true;
+  bOption := [''];
+
+  //Flax Spinner location, colour, and uptext
+  spinLoc := [[198, 353]];
+  spinCol := CTS2(411756, 13, 0.05, 0.90);
+  sUpText := ['Spin Spinnin', 'n Spinning wh'];
+  spinLeft := true;
+  sOption := [''];
+
+  stringsMade := 0;
+
+  //Path from spinner to bank
+  pBank := [Point(197, 356), Point(196, 348), Point(213, 337), Point(236, 333), Point(264, 314), Point(288, 300), Point(299, 275), Point(299, 254), Point(299, 235), Point(301, 210), Point(298, 189), Point(323, 188)];
+
+  //Path from bank to spinner
+  pSpinner :=  [Point(323, 188), Point(298, 189), Point(301, 210), Point(299, 235), Point(299, 254), Point(299, 275), Point(288, 300), Point(264, 314), Point(236, 333), Point(213, 337), Point(196, 348), Point(197, 356)];
+
+  //DTMs to Load
+  bsDTM          := DTMFromString('m1gAAAHic42JgYJjPwsAwC4gnAfFMIF4KxJOBeDUUTwPiuUC8Gah2DRCvA+I9QLwPincD8RYg3gTlN5dHMIgKCgJZjCgYJgaiIWziACORGAEABr8PuQ==');
+  flaxDTM        := DTMFromString('mwQAAAHic42RgYOhjZWCYBcTtQNwMxJOAeAoQtwJxF5TdD1Q3BYinA3EvEM+E8icDcScQdwMxgxMnkGDEicO272YgBuA2AYHhAAD7Dgxw');
+  bsButtonDTM    := DTMFromString('mlwAAAHicY2dgYFjEwsCwGognA/EWIJ4BxAuAeCkQX2ZkYNgHxCeA+DEQPwfiQ1C6IM2HQVRQECvGBxjxYCgAAKHJDNs=');
+  craftLvlDTM    := DTMFromString('mrAAAAHic42BgYGDmYGB4zM7AIAmkGYD4AZD9E4j/ATE7kP+akYFBg4mBgRuIxYCYD4ifA8UeAvELIM5JSWGoCOJliAgKYtBQU2OItuUEi/m4uTF4ODszEAKMBDAMAADA9A8e');
+
+end;
+
+{*******************************************************************************
+  Name: freeTheDTMs();
+  Function: Frees all the loaded DTMs when the program exits.
+*******************************************************************************}
+procedure freeTheDTMs();
+begin
+  freeDTM(bsDTM);
+  freeDTM(flaxDTM);
+  freeDTM(craftLvlDTM);
+  freeDTM(bsButtonDTM);
+end;
+
+{*******************************************************************************
+  Name: setupAntiban();
+  Function: Sets up the built-in antiban included with the SRL include.
+  NOTE: Please feel free to customize this and make it unique to you.
+*******************************************************************************}
+procedure setupAntiban();
+begin
+  Antiban.Init(SKILL_CRAFTING);
+
+  Antiban.AddTask([@Antiban.LoseFocus,     ONE_MINUTE*3]);
+  Antiban.AddTask([@Antiban.HoverPlayers,  ONE_MINUTE*8]);
+  Antiban.AddTask([@Antiban.CheckSkill,    ONE_MINUTE*5]);
+  Antiban.AddTask([@Antiban.CheckStats,    ONE_MINUTE*9]);
+  Antiban.AddTask([@Antiban.OpenRandomTab, ONE_MINUTE*11]);
+  Antiban.AddTask([@Antiban.VeryShortBreak,ONE_MINUTE*28]);
+  Antiban.AddTask([@Antiban.DoMiscStuff,   ONE_MINUTE*25]);
+  Antiban.AddTask([@Antiban.RandomCompass, ONE_MINUTE*15]);
+
+  Antiban.AddBreak([65 * ONE_MINUTE, 05 * ONE_MINUTE, 0.05]);
+  Antiban.AddBreak([02 * ONE_HOUR,   15 * ONE_MINUTE, 0.15]);
+  Antiban.AddBreak([04 * ONE_HOUR,   35 * ONE_MINUTE, 0.85]);
+  Antiban.AddBreak([15 * ONE_HOUR,   07 * ONE_HOUR,   0.99]);
+end;
+
+{*******************************************************************************
+  Name: proggy();
+  Function: Prints out the progress report into the debug below.
+*******************************************************************************}
+procedure proggy();
+var
+  timeRunning, currXP, xpHour, stringsHour, currProfit, profitHour: Extended;
+begin
+  timeRunning := GetTimeRunning() / 1000;
+  currXP := stringsMade * XPPERSTRING;
+  currProfit := stringsMade * (BSCOST - FLAXCOST);
+  xpHour := (3600 * (currXP)) / timeRunning;
+  stringsHour := (3600 * (stringsMade)) / timeRunning;
+  profitHour := (3600 * currProfit) / timeRunning;
+
+  ClearDebug;
+  writeln('|- Time Running: ', SRL.MsToTime(GetTimeRunning, Time_Short));
+  writeln('|- Strings Made: ', stringsMade);
+  writeln('|- XP Gained: ', currXP);
+  writeln('|- Strings/Hour: ', round(stringsHour, 0));
+  writeln('|- XP/Hour: ', round(xpHour, 1));
+  writeLn('|- Time Since Break  : ', SRL.MsToTime(Antiban.TimeSinceBreak(), Time_Short));
+end;
+
+{*******************************************************************************
+  Name: endScript();
+  Function: Ends the script with the given reason.
+  Ex: endScript('Failed to bank');
+*******************************************************************************}
+procedure endScript(reason: String);
+begin
+  writeln('Terminating script: ' + reason);
+  freeTheDTMs();
+  Walk.Free();
+  terminateScript;
+end;
+
+{*******************************************************************************
+  Name: myAntiban();
+  Function: Executes the antiban and checks for random events.
+*******************************************************************************}
+Procedure myAntiban();
+begin
+  if not SRL.isLoggedIn() then Exit;
+  SRL.DismissRandom();
+  Antiban.DoAntiban();
+end;
+
+{*******************************************************************************
+  Name: TMSObject.Find();
+  Function: Finds the specified TMSObject on the screen and returns its rectangle.
+  Ex: objectToFind.Find(True, 4);
+  *Original Author: Slacky*
+*******************************************************************************}
+function TMSObject.Find(DoSort: Boolean=True; Expand:Int32=0): TRectArray;
+var
+  loc, me: TPoint;
+  rect: TRectangle;
+  locations, TPA: TPointArray;
+  ATPA: T2DPointArray;
+begin
+  me := Walk.GetMyPos();
+  locations := Copy(Self.WorldLoc);
+  if DoSort then Locations.Sorted(me);
+
+  for loc in Locations do
+  begin
+    rect := Walk.GetTileMSEx(me, loc, 1).Expand(Expand);
+    if MainScreen.GetBounds.Contains(rect.Bounds) then
+    begin
+      if (srl.FindColors(TPA, Color, rect.Bounds) < Self.MinCount) then
+        Continue;
+
+      if (Self.SplitDist > 0) then
+      begin
+        TPA  := rect.Filter(TPA);
+        ATPA := TPA.Cluster(Self.SplitDist);
+        ATPA.SortByMiddle(rect.Mean);
+        Result += ATPA[0].MinAreaRect;
+      end else
+        Result += rect.Expand(-Expand);
+    end;
+  end;
+end;
+
+{*******************************************************************************
+  Name: findObj();
+  Function: Finds an object based on locations, colours, and upText.
+            Can Left & Right click when object is found.
+            If given multiple locations, it will choose randomly between the
+            tiles that contain the colour. This can be changed.
+  Ex: findObj([[198, 353]], CTS2(411756, 13, 0.05, 0.90), 50, 8, ['Spin Spinnin', 'n Spinning wh'], True, ['']);
+  *Original Author: Slacky*
+  *Modified By: StickToTheScript*
+*******************************************************************************}
+function findObj(locations: TPointArray; cts2Colour : TCTS2Color; minimumCount: Int32; spltDist: Int32; upText: TStringArray; leftClick: Boolean; option: TStringArray): boolean;
+var
+  i: Int32;
+  obj: TMSObject;
+  rectangles: array of TRectangle;
+begin
+  begin
+    obj := [locations, cts2Colour, minimumCount, spltDist];
+    rectangles := obj.Find(True, 3);
+
+    i := random(0, high(rectangles));
+    if (high(rectangles) < 0) then
+      exit(false);
+
+    {$IFDEF SMART}
+      smart.Image.Clear();
+      smart.Image.DrawTPA(rectangles[i].ToTPA.Connect, $00FFFF);
+    {$ENDIF}
+
+    mouse.Move(rectangles[i]);
+    if (Mainscreen.IsUpText(upText)) then
+    begin
+      if leftClick then
+        mouse.Click(MOUSE_LEFT)
+      else begin
+        mouse.Click(MOUSE_RIGHT);
+        wait(randomRange(150, 500));
+        ChooseOption.Select(option);
+      end;
+      {$IFDEF SMART}
+        smart.Image.Clear();
+      {$ENDIF}
+      result := True;
+    end;
+  end;
+end;
+
+{*******************************************************************************
+  Name: depositeObj();
+  Function: Simply puts all items in the inventory into the bank.
+*******************************************************************************}
+function depositeObj(): boolean;
+begin
+  if (not bankScreen.IsOpen) then
+    exit(false);
+
+  bankScreen.DepositAll();
+end;
+
+{*******************************************************************************
+  Name: removeObj();
+  Function: Removes the Flax from the bank.
+*******************************************************************************}
+function removeObj(): boolean;
+var
+  TPA: TPointArray;
+begin
+  if  findDTMs(flaxDTM, TPA, 19, 7, 499, 334) then
+  begin
+    mouse.Move(TPA[0]);
+    mouse.Click(MOUSE_RIGHT);
+    wait(randomRange(150, 500));
+    ChooseOption.Select(['Withdraw-All']);
+  end else
+    endScript('Could not find Flax in bank.');
+end;
+
+{*******************************************************************************
+  Name: bankLoop();
+  Function: When we arrive at the bank, this function handles the finding,
+            opening, depositing, and removing.
+*******************************************************************************}
+function bankLoop(): boolean;
+begin
+  if findObj(bankLoc, bankCol, 200, 8, bUpText, bLeft, bOption) then
+  begin
+    if (not bankScreen.IsOpen(5000)) then
+      endScript('Clicked bank, but it did not open.');
+    wait(randomRange(150, 500));
+    depositeObj();
+    wait(randomRange(150, 500));
+    removeObj();
+  end else
+    endScript('Could not find bank.');
+end;
+
+{*******************************************************************************
+  Name: waitLoop();
+  Function: The brain that runs while we spin the flax.
+*******************************************************************************}
+function waitLoop(): boolean;
+var
+  T: TTimeMarker;
+  BC1, BC2: Integer;
+  TPA, TPA2: TPointArray;
+begin
+  BC1 := inventory.Count(flaxDTM);
+  T.start;
+  while (T.GetTime < 8000) do
+  begin
+    case random(25000) of
+      0: myAntiBan();
+    end;
+    if (inventory.Count(flaxDTM) < 1) then
+      exit(true);
+    if (findDTMs(craftLvlDTM, TPA2, 4, 340, 512, 476)) then
+      begin
+        wait(randomRange(339, 804));
+        chatBox.ClickContinue();
+        wait(randomRange(639, 1104));
+        chatBox.ClickContinue();
+        wait(randomRange(339, 804));
+        exit(false);
+      end;
+
+    BC2 := inventory.Count(flaxDTM);
+    if (BC1 <> BC2) then
+    begin
+      myAntiban();
+      T.Reset();
+      T.Start();
+      stringsMade := stringsMade + (BC1 - BC2);
+      BC1 := BC2;
+      proggy();
+    end;
+  end;
+  myAntiban();
+end;
+
+{*******************************************************************************
+  Name: spinLoop();
+  Function: Find the spinning wheel and select the option to do bow strings.
+*******************************************************************************}
+function spinLoop(): boolean;
+var
+  TP: TPoint;
+  value: boolean;
+  loc, MS: TBox;
+begin
+  if findObj(spinLoc, spinCol, 50, 8, sUpText, spinLeft, sOption) then
+  begin
+    MS := [4, 340, 512, 476];
+    if (SRL.WaitDTM(bsButtonDTM, TP, MS, 10000)) then
+    case random(10) of
+    0..9: begin
+            loc := [159, 391, 221, 456];
+            wait(randomRange(150, 500));
+            mouse.Move(loc);
+            mouse.Click(MOUSE_LEFT);
+            SRL.MouseOffClient();
+          end;
+    10..11: begin
+             PressKey(33);
+          end;
+    end;
+  end else
+    endScript('Could not find bow string DTM in chatbox.');
+
+  waitLoop();
+
+  if (inventory.Count(flaxDTM) < 1) then
+    exit(true)
+  else
+    exit(false);
+end;
+
+{*******************************************************************************
+  Name: setUp();
+  Function: The main setup procedure to get everything ready for botting.
+*******************************************************************************}
+procedure setUp();
+begin
+  {$IFDEF SMART}
+    smart.EnableDrawing := True;
+  {$ENDIF}
+
+  srl.Setup([]);
+  Walk.Init('Falador.png', -1);
+  loadObjects();
+  setupAntiban();
+  declarePlayers();
+
+  if (not SRL.isLoggedIn) then
+     Players.LoginCurrent();
+end;
+
+{*******************************************************************************
+  Name: mainLoop();
+  Function: Runs the main loop of the script.
+  Ex: endScript('Failed to bank');
+*******************************************************************************}
+function mainLoop(): Boolean;
+begin
+  Walk.WalkPath(pBank);
+  bankLoop();
+  Walk.WalkPath(pSpinner);
+  while (not spinLoop()) do
+    wait(70);
+end;
+
+begin
+  setUp();
+  repeat
+    mainLoop();
+  until(false);
+end.
