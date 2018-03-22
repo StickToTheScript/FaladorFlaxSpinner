@@ -1,6 +1,6 @@
 {*******************************************************************************
 
-     StickFlaxSpinner
+     FaladorFlaxSpinner
      Version 1.0
 
      Instructions:
@@ -17,7 +17,7 @@
      *WARNING: The ban rates are pretty high with spinning flax, so be careful.*
 
 *******************************************************************************}
-program StickFlaxSpinner;
+program FaladorFlaxSpinner;
 {$H-}
 {$define SMART}
 {$I SRL/OSR.simba}
