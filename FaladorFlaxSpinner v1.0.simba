@@ -39,9 +39,9 @@ const
   LOGIN_PASS  = 'password';   //Account Password
   RS_WORLD    = -1;           //Preferred world, -1 = random world
   IS_MEMBER   = True;         //TRUE or FALSE
-  XPPERSTRING = 15;          //XP you get for making 1 bow string
-  FLAXCOST    = 4;              //GP you bought the 1 flax for
-  BSCOST      = 145;              //GP you plan to sell the bow string for
+  XPPERSTRING = 15;           //XP you get for making 1 bow string
+  FLAXCOST    = 4;            //GP you bought the 1 flax for
+  BSCOST      = 145;          //GP you plan to sell the bow string for
 
 {*******************************************************************************
                                END OF SETUP
